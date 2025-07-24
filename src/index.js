@@ -1,5 +1,5 @@
 export default {
-  async fetch(request, env, ctx) {
+  async fetch(request, env) {
     const url = new URL(request.url);
     
     // CORS headers
@@ -131,9 +131,8 @@ export default {
 
 function generateId() {
   return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-}
-
-function getHTML() {
+}function 
+getHTML() {
   return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -158,12 +157,13 @@ function getHTML() {
         }
         
         .container {
-            max-width: 800px;
+            max-width: 900px;
             width: 100%;
             background: rgba(255, 255, 255, 0.95);
             border-radius: 20px;
             padding: 30px;
             box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            position: relative;
         }
         
         h1 {
@@ -173,10 +173,65 @@ function getHTML() {
             font-size: 2.5em;
         }
         
+        .privilege-mode {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px 15px;
+            border-radius: 25px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .privilege-toggle {
+            position: relative;
+            width: 50px;
+            height: 25px;
+            background: #ccc;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .privilege-toggle.active {
+            background: #4CAF50;
+        }
+        
+        .privilege-slider {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 21px;
+            height: 21px;
+            background: white;
+            border-radius: 50%;
+            transition: transform 0.3s;
+        }
+        
+        .privilege-toggle.active .privilege-slider {
+            transform: translateX(25px);
+        }
+        
+        .privilege-input {
+            display: none;
+            margin-left: 10px;
+        }
+        
+        .privilege-input input {
+            padding: 5px 10px;
+            border: 1px solid #ddd;
+            border-radius: 15px;
+            width: 80px;
+            text-align: center;
+        }
+        
         .wheel-container {
             position: relative;
-            width: 400px;
-            height: 400px;
+            width: 450px;
+            height: 450px;
             margin: 30px auto;
         }
         
@@ -188,6 +243,7 @@ function getHTML() {
             overflow: hidden;
             border: 8px solid #333;
             transition: transform 0.1s ease-out;
+            background: #f0f0f0;
         }
         
         .wheel-segment {
@@ -200,7 +256,18 @@ function getHTML() {
             justify-content: center;
             font-weight: bold;
             color: white;
-            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
+            font-size: 14px;
+            text-align: center;
+            padding: 10px;
+            word-wrap: break-word;
+            overflow: hidden;
+        }
+        
+        .wheel-segment-text {
+            transform: rotate(-45deg);
+            max-width: 80px;
+            line-height: 1.2;
         }
         
         .wheel-pointer {
@@ -279,6 +346,15 @@ function getHTML() {
             background: #ff3742;
         }
         
+        .btn-success {
+            background: #2ed573;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background: #1dd1a1;
+        }
+        
         .result {
             text-align: center;
             margin: 20px 0;
@@ -301,6 +377,31 @@ function getHTML() {
             border: 1px solid #ddd;
         }
         
+        .privilege-foods {
+            margin: 20px 0;
+            padding: 15px;
+            background: #e8f5e8;
+            border-radius: 10px;
+            border: 2px solid #4CAF50;
+        }
+        
+        .privilege-foods h4 {
+            color: #2e7d32;
+            margin-bottom: 10px;
+        }
+        
+        .privilege-food-input {
+            display: flex;
+            gap: 10px;
+            margin: 10px 0;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        .privilege-food-input input {
+            width: 200px;
+        }
+        
         .history {
             margin-top: 30px;
             max-height: 200px;
@@ -321,8 +422,8 @@ function getHTML() {
         
         @media (max-width: 600px) {
             .wheel-container {
-                width: 300px;
-                height: 300px;
+                width: 350px;
+                height: 350px;
             }
             
             input[type="text"] {
@@ -332,10 +433,27 @@ function getHTML() {
             h1 {
                 font-size: 2em;
             }
+            
+            .privilege-mode {
+                position: relative;
+                top: 0;
+                right: 0;
+                margin-bottom: 20px;
+            }
         }
     </style>
 </head>
 <body>
+    <div class="privilege-mode">
+        <span>特权模式</span>
+        <div class="privilege-toggle" id="privilegeToggle" onclick="togglePrivilegeMode()">
+            <div class="privilege-slider"></div>
+        </div>
+        <div class="privilege-input" id="privilegeInput">
+            <input type="password" id="privilegePassword" placeholder="密码" maxlength="3">
+        </div>
+    </div>
+
     <div class="container">
         <h1>🍽️ 吃什么？摇一摇！</h1>
         
@@ -366,6 +484,18 @@ function getHTML() {
                     <button class="btn-secondary" onclick="editFood()">修改</button>
                 </div>
                 
+                <div id="privilegeFoods" class="privilege-foods" style="display: none;">
+                    <h4>🔑 特权模式 - 批量添加食物</h4>
+                    <div class="privilege-food-input">
+                        <input type="text" id="privilegeFoodName" placeholder="输入食物名称">
+                        <button class="btn-success" onclick="addPrivilegeFood()">添加</button>
+                        <button class="btn-danger" onclick="clearAllFoods()">清空所有</button>
+                    </div>
+                    <p style="font-size: 12px; color: #666; margin-top: 10px;">
+                        特权模式下可以添加多种食物，支持重复添加同一种食物
+                    </p>
+                </div>
+                
                 <button class="btn-primary" id="spinBtn" onclick="spinWheel()" disabled>开始转动</button>
             </div>
             
@@ -381,9 +511,8 @@ function getHTML() {
                 <div id="historyList"></div>
             </div>
         </div>
-    </div>
-
-    <script>
+    </div>    <scr
+ipt>
         let currentWheelId = null;
         let userId = localStorage.getItem('userId') || generateId();
         let wheelData = null;
@@ -391,6 +520,7 @@ function getHTML() {
         let pollInterval = null;
         let refreshCheckInterval = null;
         let lastRefreshTrigger = localStorage.getItem('lastRefreshTrigger') || '0';
+        let privilegeMode = false;
         
         localStorage.setItem('userId', userId);
         
@@ -477,22 +607,28 @@ function getHTML() {
         function showGameArea() {
             document.getElementById('gameArea').style.display = 'block';
             
-            const userFood = localStorage.getItem(\`userFood_\${currentWheelId}\`);
-            if (userFood) {
-                showUserFood(userFood);
+            if (privilegeMode) {
+                showPrivilegeMode();
             } else {
-                showFoodInput();
+                const userFood = localStorage.getItem(\`userFood_\${currentWheelId}\`);
+                if (userFood) {
+                    showUserFood(userFood);
+                } else {
+                    showFoodInput();
+                }
             }
         }
         
         function showFoodInput() {
             document.getElementById('foodInput').style.display = 'block';
             document.getElementById('userFood').style.display = 'none';
+            document.getElementById('privilegeFoods').style.display = 'none';
         }
         
         function showUserFood(food) {
             document.getElementById('foodInput').style.display = 'none';
             document.getElementById('userFood').style.display = 'block';
+            document.getElementById('privilegeFoods').style.display = 'none';
             document.getElementById('currentFood').textContent = food;
         }
         
@@ -529,6 +665,103 @@ function getHTML() {
                 }
             } catch (error) {
                 alert('添加失败: ' + error.message);
+            }
+        }
+        
+        // 特权模式相关功能
+        function togglePrivilegeMode() {
+            const toggle = document.getElementById('privilegeToggle');
+            const input = document.getElementById('privilegeInput');
+            
+            if (!privilegeMode) {
+                // 显示密码输入框
+                input.style.display = 'block';
+                document.getElementById('privilegePassword').focus();
+                
+                // 监听密码输入
+                const passwordInput = document.getElementById('privilegePassword');
+                passwordInput.addEventListener('input', function(e) {
+                    if (e.target.value === '627') {
+                        // 密码正确，激活特权模式
+                        privilegeMode = true;
+                        toggle.classList.add('active');
+                        input.style.display = 'none';
+                        showPrivilegeMode();
+                        e.target.value = '';
+                    } else if (e.target.value.length >= 3) {
+                        // 密码错误
+                        e.target.value = '';
+                        e.target.placeholder = '密码错误';
+                        setTimeout(() => {
+                            e.target.placeholder = '密码';
+                            input.style.display = 'none';
+                        }, 1000);
+                    }
+                });
+            } else {
+                // 关闭特权模式
+                privilegeMode = false;
+                toggle.classList.remove('active');
+                hidePrivilegeMode();
+            }
+        }
+        
+        function showPrivilegeMode() {
+            document.getElementById('privilegeFoods').style.display = 'block';
+            document.getElementById('foodInput').style.display = 'none';
+            document.getElementById('userFood').style.display = 'none';
+        }
+        
+        function hidePrivilegeMode() {
+            document.getElementById('privilegeFoods').style.display = 'none';
+            // 恢复正常模式显示
+            const userFood = localStorage.getItem(\`userFood_\${currentWheelId}\`);
+            if (userFood) {
+                showUserFood(userFood);
+            } else {
+                showFoodInput();
+            }
+        }
+        
+        async function addPrivilegeFood() {
+            const food = document.getElementById('privilegeFoodName').value.trim();
+            if (!food) {
+                alert('请输入食物名称');
+                return;
+            }
+            
+            try {
+                const response = await fetch(\`/api/wheel/\${currentWheelId}\`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'addFood',
+                        food: food,
+                        userId: 'privilege_' + userId // 特权模式标识
+                    })
+                });
+                
+                if (response.ok) {
+                    document.getElementById('privilegeFoodName').value = '';
+                    updateWheel();
+                } else {
+                    alert('添加失败');
+                }
+            } catch (error) {
+                alert('添加失败: ' + error.message);
+            }
+        }
+        
+        async function clearAllFoods() {
+            if (!confirm('确定要清空所有食物吗？此操作不可撤销！')) {
+                return;
+            }
+            
+            try {
+                // 重新初始化转盘来清空所有食物
+                await initWheel();
+            } catch (error) {
+                alert('清空失败: ' + error.message);
             }
         }
         
@@ -609,25 +842,54 @@ function getHTML() {
             }
         }
         
+        // 优化转盘渲染函数
         function renderWheel() {
             const wheel = document.getElementById('wheel');
             const foods = Object.values(wheelData.foods);
             
             if (foods.length === 0) {
-                wheel.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #666;">暂无食物</div>';
+                wheel.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #666; font-size: 18px;">暂无食物</div>';
                 return;
             }
             
             wheel.innerHTML = '';
-            const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#feca57', '#ff9ff3', '#54a0ff', '#5f27cd'];
+            
+            // 更丰富的颜色数组，支持更多食物
+            const colors = [
+                '#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#feca57', 
+                '#ff9ff3', '#54a0ff', '#5f27cd', '#ff6348', '#2ed573',
+                '#3742fa', '#f368e0', '#ff9f43', '#0abde3', '#ee5a52',
+                '#10ac84', '#5f27cd', '#00d2d3', '#ff9ff3', '#54a0ff'
+            ];
+            
+            const segmentAngle = 360 / foods.length;
             
             foods.forEach((item, index) => {
                 const segment = document.createElement('div');
                 segment.className = 'wheel-segment';
                 segment.style.backgroundColor = colors[index % colors.length];
-                segment.style.transform = \`rotate(\${(360 / foods.length) * index}deg)\`;
-                segment.style.clipPath = \`polygon(0 0, \${100 / foods.length * 100}% 0, 50% 100%)\`;
-                segment.textContent = item.food;
+                
+                // 计算每个扇形的角度和位置
+                const startAngle = segmentAngle * index;
+                
+                // 使用更精确的扇形绘制
+                segment.style.transform = \`rotate(\${startAngle}deg)\`;
+                
+                // 根据食物数量调整字体大小和布局
+                let fontSize = '16px';
+                if (foods.length > 8) fontSize = '14px';
+                if (foods.length > 12) fontSize = '12px';
+                if (foods.length > 16) fontSize = '10px';
+                if (foods.length > 20) fontSize = '9px';
+                
+                // 创建扇形的clip-path
+                const angle = segmentAngle * Math.PI / 180;
+                const x = Math.cos(angle) * 100;
+                const y = Math.sin(angle) * 100;
+                segment.style.clipPath = \`polygon(0 0, \${x}% \${y}%, 0 100%)\`;
+                
+                segment.innerHTML = \`<div class="wheel-segment-text" style="font-size: \${fontSize};">\${item.food}</div>\`;
+                
                 wheel.appendChild(segment);
             });
         }
@@ -699,5 +961,5 @@ function getHTML() {
         });
     </script>
 </body>
-</html>`;
+</html>\`;
 }

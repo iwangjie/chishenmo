@@ -97,12 +97,9 @@ export default {
           const data = JSON.parse(await env.FOOD_KV.get(`wheel:${wheelId}`) || '{}');
           
           if (action === 'addFood') {
-            if (!data.foods[userId]) {
-              data.foods[userId] = { food, count: 1 };
-            } else {
-              data.foods[userId].food = food;
-              data.foods[userId].count += 1;
-            }
+            // 生成唯一的食物ID，允许同一种食物多次添加
+            const foodId = generateId();
+            data.foods[foodId] = { food, userId };
           } else if (action === 'spin') {
             data.spinning = true;
             data.result = null;
@@ -555,15 +552,7 @@ function getHTML() {
                 
                 setTimeout(async () => {
                     const foods = Object.values(wheelData.foods);
-                    const weightedFoods = [];
-                    
-                    foods.forEach(item => {
-                        for (let i = 0; i < item.count; i++) {
-                            weightedFoods.push(item.food);
-                        }
-                    });
-                    
-                    const result = weightedFoods[Math.floor(Math.random() * weightedFoods.length)];
+                    const result = foods[Math.floor(Math.random() * foods.length)].food;
                     
                     await fetch(\`/api/wheel/\${currentWheelId}\`, {
                         method: 'POST',
@@ -638,7 +627,7 @@ function getHTML() {
                 segment.style.backgroundColor = colors[index % colors.length];
                 segment.style.transform = \`rotate(\${(360 / foods.length) * index}deg)\`;
                 segment.style.clipPath = \`polygon(0 0, \${100 / foods.length * 100}% 0, 50% 100%)\`;
-                segment.textContent = \`\${item.food} (\${item.count})\`;
+                segment.textContent = item.food;
                 wheel.appendChild(segment);
             });
         }
@@ -652,8 +641,14 @@ function getHTML() {
                 return;
             }
             
-            foodList.innerHTML = foods.map(item => 
-                \`<span class="food-item">\${item.food} (权重: \${item.count})</span>\`
+            // 统计每种食物的数量
+            const foodCounts = {};
+            foods.forEach(item => {
+                foodCounts[item.food] = (foodCounts[item.food] || 0) + 1;
+            });
+            
+            foodList.innerHTML = Object.entries(foodCounts).map(([food, count]) => 
+                \`<span class="food-item">\${food} (\${count}次)</span>\`
             ).join('');
         }
         

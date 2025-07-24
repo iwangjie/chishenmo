@@ -1,0 +1,16 @@
+{
+  "name": "chishenmo",
+  "version": "1.0.0",
+  "description": "吃什么？摇一摇！- 一个基于Cloudflare Worker的随机选择转盘应用",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "keywords": ["cloudflare", "worker", "food", "random", "wheel"],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "wrangler": "^3.0.0"
+  }
+}

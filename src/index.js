@@ -22,15 +22,56 @@ export default {
 
       if (url.pathname === '/api/init' && request.method === 'POST') {
         const wheelId = generateId();
-        await env.FOOD_KV.put(`wheel:${wheelId}`, JSON.stringify({
+        const wheelData = {
           id: wheelId,
           foods: {},
           spinning: false,
           result: null,
           history: [],
           createdAt: Date.now()
-        }));
-        return new Response(JSON.stringify({ wheelId }), {
+        };
+        
+        // 保存新转盘数据
+        await env.FOOD_KV.put(`wheel:${wheelId}`, JSON.stringify(wheelData));
+        
+        // 更新最新转盘ID
+        await env.FOOD_KV.put('latest_wheel_id', wheelId);
+        
+        // 触发全局刷新通知
+        await env.FOOD_KV.put('refresh_trigger', Date.now().toString());
+        
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      if (url.pathname === '/api/latest' && request.method === 'GET') {
+        const latestWheelId = await env.FOOD_KV.get('latest_wheel_id');
+        if (!latestWheelId) {
+          return new Response(JSON.stringify({ error: 'No wheel found' }), {
+            status: 404,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+        
+        const wheelData = await env.FOOD_KV.get(`wheel:${latestWheelId}`);
+        if (!wheelData) {
+          return new Response(JSON.stringify({ error: 'Wheel data not found' }), {
+            status: 404,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+        
+        return new Response(wheelData, {
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      if (url.pathname === '/api/refresh-check' && request.method === 'GET') {
+        const refreshTrigger = await env.FOOD_KV.get('refresh_trigger');
+        return new Response(JSON.stringify({ 
+          refreshTrigger: refreshTrigger || '0' 
+        }), {
           headers: { 'Content-Type': 'application/json', ...corsHeaders }
         });
       }
@@ -303,13 +344,11 @@ function getHTML() {
         
         <div class="controls">
             <div class="input-group">
-                <input type="text" id="wheelIdInput" placeholder="输入转盘编号或留空创建新转盘">
-                <button class="btn-primary" onclick="joinWheel()">加入转盘</button>
                 <button class="btn-secondary" onclick="initWheel()">初始化新转盘</button>
             </div>
             
-            <div id="wheelInfo" style="display: none;">
-                <p>转盘编号: <strong id="currentWheelId"></strong></p>
+            <div id="connectionStatus">
+                <p>🔄 正在连接最新转盘...</p>
             </div>
         </div>
         
@@ -353,6 +392,8 @@ function getHTML() {
         let wheelData = null;
         let isSpinning = false;
         let pollInterval = null;
+        let refreshCheckInterval = null;
+        let lastRefreshTrigger = localStorage.getItem('lastRefreshTrigger') || '0';
         
         localStorage.setItem('userId', userId);
         
@@ -360,45 +401,83 @@ function getHTML() {
             return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
         }
         
+        // 页面加载时自动连接最新转盘
+        window.addEventListener('DOMContentLoaded', async () => {
+            await connectToLatestWheel();
+            startRefreshCheck();
+        });
+        
+        async function connectToLatestWheel() {
+            try {
+                document.getElementById('connectionStatus').innerHTML = '<p>🔄 正在连接最新转盘...</p>';
+                
+                const response = await fetch('/api/latest');
+                if (response.ok) {
+                    const data = await response.json();
+                    currentWheelId = data.id;
+                    wheelData = data;
+                    
+                    document.getElementById('connectionStatus').innerHTML = '<p>✅ 已连接到最新转盘</p>';
+                    showGameArea();
+                    startPolling();
+                } else {
+                    document.getElementById('connectionStatus').innerHTML = '<p>❌ 暂无可用转盘，请初始化新转盘</p>';
+                }
+            } catch (error) {
+                document.getElementById('connectionStatus').innerHTML = '<p>❌ 连接失败，请检查网络</p>';
+                console.error('连接失败:', error);
+            }
+        }
+        
         async function initWheel() {
             try {
+                document.getElementById('connectionStatus').innerHTML = '<p>🔄 正在初始化新转盘...</p>';
+                
                 const response = await fetch('/api/init', {
                     method: 'POST'
                 });
-                const data = await response.json();
-                currentWheelId = data.wheelId;
-                localStorage.removeItem(\`userFood_\${currentWheelId}\`);
-                showGameArea();
-                startPolling();
+                
+                if (response.ok) {
+                    // 清除当前用户的食物记录
+                    if (currentWheelId) {
+                        localStorage.removeItem(\`userFood_\${currentWheelId}\`);
+                    }
+                    
+                    // 重新连接到最新转盘
+                    await connectToLatestWheel();
+                } else {
+                    alert('初始化失败');
+                }
             } catch (error) {
                 alert('初始化失败: ' + error.message);
             }
         }
         
-        async function joinWheel() {
-            const wheelId = document.getElementById('wheelIdInput').value.trim();
-            if (!wheelId) {
-                await initWheel();
-                return;
-            }
-            
+        // 检查是否需要刷新连接
+        async function checkForRefresh() {
             try {
-                const response = await fetch(\`/api/wheel/\${wheelId}\`);
+                const response = await fetch('/api/refresh-check');
                 if (response.ok) {
-                    currentWheelId = wheelId;
-                    showGameArea();
-                    startPolling();
-                } else {
-                    alert('转盘不存在');
+                    const data = await response.json();
+                    if (data.refreshTrigger !== lastRefreshTrigger) {
+                        lastRefreshTrigger = data.refreshTrigger;
+                        localStorage.setItem('lastRefreshTrigger', lastRefreshTrigger);
+                        
+                        // 如果当前用户不是触发刷新的用户，则重新连接
+                        await connectToLatestWheel();
+                    }
                 }
             } catch (error) {
-                alert('加入失败: ' + error.message);
+                console.error('刷新检查失败:', error);
             }
         }
         
+        function startRefreshCheck() {
+            if (refreshCheckInterval) clearInterval(refreshCheckInterval);
+            refreshCheckInterval = setInterval(checkForRefresh, 3000);
+        }
+        
         function showGameArea() {
-            document.getElementById('wheelInfo').style.display = 'block';
-            document.getElementById('currentWheelId').textContent = currentWheelId;
             document.getElementById('gameArea').style.display = 'block';
             
             const userFood = localStorage.getItem(\`userFood_\${currentWheelId}\`);
@@ -621,6 +700,7 @@ function getHTML() {
         // 页面卸载时清理
         window.addEventListener('beforeunload', () => {
             if (pollInterval) clearInterval(pollInterval);
+            if (refreshCheckInterval) clearInterval(refreshCheckInterval);
         });
     </script>
 </body>
